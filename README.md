@@ -21,7 +21,7 @@ Modern tasarımlı para yönetimi uygulaması. React Native ve Expo ile gelişti
 
 1. **Projeyi klonlayın**
 ```bash
-git clone https://github.com/yourusername/paraakolik-new.git
+git clone https://github.com/barlassen/paraakolik-new.git
 cd paraakolik-new
 ```
 
