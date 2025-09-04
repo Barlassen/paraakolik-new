@@ -1,12 +1,15 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, Pressable, StyleSheet, TextInput, ScrollView, Animated, Dimensions, StatusBar } from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, StyleSheet, TextInput, ScrollView, Animated, Dimensions, StatusBar, Alert } from 'react-native';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 
 const { width, height } = Dimensions.get('window');
 
-export default function App() {
+function AppContent() {
   const [currentScreen, setCurrentScreen] = useState('welcome');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { user, signUp, signIn, signInWithGoogle, logout } = useAuth();
   
   const circleScale = useRef(new Animated.Value(0)).current;
   const circleOpacity = useRef(new Animated.Value(0)).current;
@@ -55,6 +58,105 @@ export default function App() {
   const goBack = () => {
     // Geri dönüş için animasyonlu geçiş
     animateTransition('welcome');
+  };
+
+  // Kullanıcı giriş yapmışsa ana ekrana yönlendir
+  if (user) {
+    return (
+      <View style={[styles.container, { padding: 20, paddingTop: 60, alignItems: 'center', justifyContent: 'center' }]}>
+        <StatusBar barStyle="light-content" backgroundColor="#111814" />
+        <Text style={styles.logo}>Parakolik</Text>
+        <Text style={styles.title}>Hoş Geldiniz!</Text>
+        <Text style={styles.subtitle}>Giriş yapıldı: {user.email}</Text>
+        <TouchableOpacity 
+          style={styles.button}
+          onPress={logout}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.buttonText}>Çıkış Yap</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Kayıt olma işlevi
+  const handleSignUp = async () => {
+    if (!email || !password) {
+      Alert.alert('Hata', 'Lütfen tüm alanları doldurun');
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert('Hata', 'Şifre en az 6 karakter olmalıdır');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await signUp(email, password);
+      Alert.alert('Başarılı', 'Hesabınız başarıyla oluşturuldu!');
+    } catch (error: any) {
+      let errorMessage = 'Kayıt olurken bir hata oluştu';
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'Bu e-posta adresi zaten kullanılıyor';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Geçersiz e-posta adresi';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Şifre çok zayıf';
+      }
+      Alert.alert('Hata', errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Giriş yapma işlevi
+  const handleSignIn = async () => {
+    if (!email || !password) {
+      Alert.alert('Hata', 'Lütfen tüm alanları doldurun');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await signIn(email, password);
+      Alert.alert('Başarılı', 'Giriş yapıldı!');
+    } catch (error: any) {
+      let errorMessage = 'Giriş yaparken bir hata oluştu';
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'Bu e-posta adresi ile kayıtlı kullanıcı bulunamadı';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Yanlış şifre';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Geçersiz e-posta adresi';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Çok fazla başarısız deneme. Lütfen daha sonra tekrar deneyin';
+      }
+      Alert.alert('Hata', errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Google ile giriş yapma işlevi
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      await signInWithGoogle();
+      Alert.alert('Başarılı', 'Google ile giriş yapıldı!');
+    } catch (error: any) {
+      let errorMessage = 'Google ile giriş yaparken bir hata oluştu';
+      if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'Giriş iptal edildi';
+      } else if (error.code === 'auth/popup-blocked') {
+        errorMessage = 'Popup engellendi. Lütfen popup engelleyicisini kapatın';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      Alert.alert('Hata', errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (currentScreen === 'welcome') {
@@ -141,8 +243,15 @@ export default function App() {
           </View>
 
           {/* Primary Button */}
-          <TouchableOpacity style={styles.newPrimaryButton} activeOpacity={0.7}>
-            <Text style={styles.newPrimaryButtonText}>Kaydol</Text>
+          <TouchableOpacity 
+            style={[styles.newPrimaryButton, loading && styles.disabledButton]} 
+            activeOpacity={0.7}
+            onPress={handleSignUp}
+            disabled={loading}
+          >
+            <Text style={styles.newPrimaryButtonText}>
+              {loading ? 'Kayıt Olunuyor...' : 'Kaydol'}
+            </Text>
           </TouchableOpacity>
 
           {/* Login Link */}
@@ -155,8 +264,15 @@ export default function App() {
           </TouchableOpacity>
 
           {/* Google Button */}
-          <TouchableOpacity style={styles.newGoogleButton} activeOpacity={0.7}>
-            <Text style={styles.newGoogleButtonText}>Google ile Kaydol</Text>
+          <TouchableOpacity 
+            style={[styles.newGoogleButton, loading && styles.disabledButton]} 
+            activeOpacity={0.7}
+            onPress={handleGoogleSignIn}
+            disabled={loading}
+          >
+            <Text style={styles.newGoogleButtonText}>
+              {loading ? 'Google ile Bağlanılıyor...' : 'Google ile Kaydol'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -225,8 +341,15 @@ export default function App() {
             </View>
 
             {/* Primary Button */}
-            <TouchableOpacity style={styles.primaryButton} activeOpacity={0.7}>
-              <Text style={styles.primaryButtonText}>Giriş Yap</Text>
+            <TouchableOpacity 
+              style={[styles.primaryButton, loading && styles.disabledButton]} 
+              activeOpacity={0.7}
+              onPress={handleSignIn}
+              disabled={loading}
+            >
+              <Text style={styles.primaryButtonText}>
+                {loading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
+              </Text>
             </TouchableOpacity>
 
             {/* Sign Up Link */}
@@ -239,8 +362,15 @@ export default function App() {
             </TouchableOpacity>
 
             {/* Google Button */}
-            <TouchableOpacity style={styles.googleButton} activeOpacity={0.7}>
-              <Text style={styles.googleButtonText}>Google ile Giriş Yap</Text>
+            <TouchableOpacity 
+              style={[styles.googleButton, loading && styles.disabledButton]} 
+              activeOpacity={0.7}
+              onPress={handleGoogleSignIn}
+              disabled={loading}
+            >
+              <Text style={styles.googleButtonText}>
+                {loading ? 'Google ile Bağlanılıyor...' : 'Google ile Giriş Yap'}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -258,6 +388,14 @@ export default function App() {
       </View>
     );
   }
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -514,5 +652,14 @@ const styles = StyleSheet.create({
     height: 320,
     backgroundColor: '#1a1a1a',
     marginTop: 'auto',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#9cbaab',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  disabledButton: {
+    opacity: 0.6,
   }
 });
